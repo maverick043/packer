@@ -1,0 +1,31 @@
+{
+  "builders": [
+    {
+      "type": "qemu",
+      "iso_url": "https://download.rockylinux.org/pub/rocky/9/isos/x86_64/Rocky-9.5-x86_64-minimal.iso",
+      "iso_checksum": "sha256:eedbdc2875c32c7f00e70fc861edef48587c7cbfd106885af80bdf434543820b",
+      "output_directory": "output-rocky",
+      "ssh_username": "root",
+      "ssh_password": "root123",
+      "ssh_timeout": "20m",
+      "shutdown_command": "shutdown -P now",
+      "disk_size": "10G",
+      "format": "qcow2",
+      "vm_name": "rocky-linux-9.2",
+      "boot_wait": "10s",
+      "boot_command": [
+        "<tab> inst.text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.cfg<enter><wait>"
+      ],
+      "http_directory": "http",
+      "headless": true
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": [
+        "echo 'Provisioning complete!'"
+      ]
+    }
+  ]
+}
