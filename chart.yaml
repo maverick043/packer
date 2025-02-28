@@ -1,0 +1,5 @@
+apiVersion: v2
+name: busybox-chart
+description: A Helm chart for deploying BusyBox with MetalLB and Rook support
+version: 0.1.0
+appVersion: "1.0"
