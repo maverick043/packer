@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-busybox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-busybox
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-busybox
+    spec:
+      containers:
+      - name: busybox
+        image: {{ .Values.busybox.image.repository }}:{{ .Values.busybox.image.tag }}
+        imagePullPolicy: {{ .Values.busybox.image.pullPolicy }}
+        command: {{ .Values.busybox.command }}
+        {{- if .Values.rook.enabled }}
+        volumeMounts:
+        - name: rook-storage
+          mountPath: /data
+        {{- end }}
+      {{- if .Values.rook.enabled }}
+      volumes:
+      - name: rook-storage
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-rook-pvc
+      {{- end }}
