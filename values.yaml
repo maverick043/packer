@@ -1,0 +1,22 @@
+# BusyBox Configuration
+busybox:
+  image:
+    repository: busybox
+    tag: 1.35.0
+    pullPolicy: IfNotPresent
+  command: ["sleep", "3600"]
+
+# MetalLB Configuration
+metallb:
+  enabled: true
+  ip: 192.168.1.100  # IP address to assign via MetalLB
+
+# Rook Configuration
+rook:
+  enabled: true
+  storageClass:
+    name: rook-ceph-block
+    reclaimPolicy: Delete
+  cephImage:
+    repository: ceph/ceph
+    tag: v16.2.7  # Ceph Pacific version
