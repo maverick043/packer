@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-service
+  {{- if .Values.metallb.enabled }}
+  annotations:
+    metallb.universe.tf/address-pool: default
+  {{- end }}
+spec:
+  type: {{ if .Values.metallb.enabled }}LoadBalancer{{ else }}ClusterIP{{ end }}
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: {{ .Release.Name }}-busybox
+  {{- if .Values.metallb.enabled }}
+  loadBalancerIP: {{ .Values.metallb.ip }}
+  {{- end }}
