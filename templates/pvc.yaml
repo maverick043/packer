@@ -1,0 +1,13 @@
+{{- if .Values.rook.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-rook-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.rook.pvc.size }}
+  storageClassName: {{ .Values.rook.storageClass }}
+{{- end }}
