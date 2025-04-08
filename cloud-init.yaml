@@ -1,0 +1,32 @@
+#cloud-config
+autoinstall:
+  version: 1
+  identity:
+    hostname: ubuntu-desktop
+    password: "$6$exDY1mhS4KUYCE/2$zmn9ToZwTKLhCw.b4/b.ZRTIZM30JZ4QrOQ2aOXJ8yk96xpcCof0kxKwuX1kqLG/ygbJ1f8wxED22bTL4FAcP0"
+    username: user
+
+  ssh:
+    install-server: true
+    allow-pw: true
+
+  packages:
+    - ubuntu-desktop
+    - openssh-server
+
+  user-data:
+    disable_root: false
+    timezone: UTC
+    runcmd:
+      - sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+      - systemctl restart sshd
+      - echo "greeter-show-manual-login=true" >> /etc/lightdm/lightdm.conf
+      - echo "greeter-hide-users=false" >> /etc/lightdm/lightdm.conf
+      - echo "allow-guest=false" >> /etc/lightdm/lightdm.conf
+      # Optional: Enable automatic login (remove if not needed)
+      - echo "[SeatDefaults]" >> /etc/lightdm/lightdm.conf.d/50-autologin.conf
+      - echo "autologin-user=user" >> /etc/lightdm/lightdm.conf.d/50-autologin.conf
+      - echo "autologin-user-timeout=0" >> /etc/lightdm/lightdm.conf.d/50-autologin.conf
+
+early-commands:
+  - sudo systemctl stop ssh
