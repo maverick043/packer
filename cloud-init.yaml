@@ -8,7 +8,7 @@ autoinstall:
 
   ssh:
     install-server: true
-    allow-pw: true
+    allow-pw: true  # This enables password authentication
 
   packages:
     - ubuntu-desktop
@@ -18,15 +18,15 @@ autoinstall:
     disable_root: false
     timezone: UTC
     runcmd:
-      - sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+      # Ensure password authentication is enabled in sshd_config
+      - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+      - sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
       - systemctl restart sshd
+      # Desktop environment configuration
       - echo "greeter-show-manual-login=true" >> /etc/lightdm/lightdm.conf
       - echo "greeter-hide-users=false" >> /etc/lightdm/lightdm.conf
       - echo "allow-guest=false" >> /etc/lightdm/lightdm.conf
-      # Optional: Enable automatic login (remove if not needed)
+      # Optional automatic login
       - echo "[SeatDefaults]" >> /etc/lightdm/lightdm.conf.d/50-autologin.conf
       - echo "autologin-user=user" >> /etc/lightdm/lightdm.conf.d/50-autologin.conf
       - echo "autologin-user-timeout=0" >> /etc/lightdm/lightdm.conf.d/50-autologin.conf
-
-early-commands:
-  - sudo systemctl stop ssh
