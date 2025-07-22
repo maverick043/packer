@@ -1,0 +1,23 @@
+module firefox_hardening 1.0;
+
+require {
+    type {{ selinux_firefox_domain }};
+    type home_t;
+    type tmp_t;
+    class file { execute execute_no_trans };
+    class dir { search };
+    class process { execmem execstack execmod };
+}
+
+# Prevent execution of files in home directories
+deny {{ selinux_firefox_domain }} home_t:file { execute execute_no_trans };
+deny {{ selinux_firefox_domain }} home_t:dir { search };
+
+# Prevent execution from /tmp
+deny {{ selinux_firefox_domain }} tmp_t:file { execute execute_no_trans };
+deny {{ selinux_firefox_domain }} tmp_t:dir { search };
+
+# Deny runtime code execution features (optional)
+{% if disable_execmem %}
+deny {{ selinux_firefox_domain }} self:process { execmem execstack execmod };
+{% endif %}
