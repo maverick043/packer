@@ -1,0 +1,11 @@
+firefox_profile_path: "/home/{{ ansible_user }}/.mozilla/firefox"
+firefox_profile_pattern: "*.default*"
+
+firefox_policies:
+  disable_javascript: true
+  block_autoplay: true
+  disable_plugins: true
+  disable_popups: true
+  block_executables: true
+  disable_pdf_viewer: false
+  enable_tracking_protection: true
