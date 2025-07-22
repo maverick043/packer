@@ -1,0 +1,16 @@
+- name: Find Firefox profiles
+  find:
+    paths: "{{ firefox_profile_path }}"
+    patterns: "{{ firefox_profile_pattern }}"
+    file_type: directory
+  register: firefox_profiles
+
+- name: Apply hardened Firefox user.js template
+  template:
+    src: user.js.j2
+    dest: "{{ item.path }}/user.js"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  loop: "{{ firefox_profiles.files }}"
+  when: firefox_profiles.matched > 0
