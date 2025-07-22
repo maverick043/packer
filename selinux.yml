@@ -1,0 +1,47 @@
+- name: Ensure SELinux is enforcing
+  selinux:
+    policy: targeted
+    state: enforcing
+
+- name: Install SELinux management tools
+  package:
+    name: policycoreutils-python-utils
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Create SELinux custom policy module to restrict Firefox
+  copy:
+    dest: /tmp/firefox_hardening.te
+    content: |
+      module firefox_hardening 1.0;
+
+      require {
+        type mozilla_t;
+        class file { execute execute_no_trans open read };
+        class dir { search read };
+      }
+
+      # Block execution of downloaded files from home directory
+      # i.e., prevent execute from home_t
+      dontallow mozilla_t home_t:file { execute execute_no_trans };
+      dontallow mozilla_t home_t:dir search;
+
+      # Optional: prevent execution from tmp (if users download there)
+      dontallow mozilla_t tmp_t:file { execute execute_no_trans };
+      dontallow mozilla_t tmp_t:dir search;
+
+      # Optional: remove ability to mmap executable memory (common in exploits)
+      dontallow mozilla_t self:process { execmem execstack execmod };
+    mode: '0644'
+
+- name: Compile the SELinux module
+  command: "checkmodule -M -m -o /tmp/firefox_hardening.mod /tmp/firefox_hardening.te"
+
+- name: Package the SELinux module
+  command: "semodule_package -o /tmp/firefox_hardening.pp -m /tmp/firefox_hardening.mod"
+
+- name: Install the SELinux module
+  command: "semodule -i /tmp/firefox_hardening.pp"
+
+- name: Restore SELinux context for Firefox profiles
+  command: "restorecon -Rv {{ firefox_profile_path }}"
