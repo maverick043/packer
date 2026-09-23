@@ -1,0 +1,68 @@
+# =============================================================================
+# vLLM – Qwen3.8-27B (chat model, full GPU)
+# Format: vLLM production-stack chart (servingEngineSpec.modelSpec[]).
+# Using your own chart? Only the flags in `extraArgs` + vllmConfig matter –
+# copy them onto your `vllm serve` command line.
+#
+# Sizing assumes a 96 GB card (your 2g.48gb MIG profile suggests RTX PRO 6000
+# Blackwell). BF16 weights ≈ 55 GB. Qwen3.8 only has 16 full-attention layers,
+# so KV cache is ~64 KiB/token and 131k context fits comfortably.
+# On an 80 GB card this still fits; drop maxModelLen to 65536 if startup
+# complains about KV cache size.
+# =============================================================================
+servingEngineSpec:
+  runtimeClassName: "nvidia"
+  modelSpec:
+    - name: "qwen38-27b"
+      repository: "<your-registry>/vllm/vllm-openai"   # keep the image you run today
+      tag: "<your-current-tag>"
+      # Airgapped: weights pre-copied into the PVC, never pulled from HF
+      modelURL: "/data/models/Qwen3.8-27B"
+      replicaCount: 1
+      requestCPU: 8
+      requestMemory: "64Gi"
+      requestGPU: 1
+      requestGPUType: "nvidia.com/gpu"
+      pvcStorage: "120Gi"
+      shmSize: "16Gi"
+
+      vllmConfig:
+        # THE setting behind most RAG 400s: prompt + max_tokens must fit.
+        maxModelLen: 131072
+        gpuMemoryUtilization: 0.92
+        enablePrefixCaching: true      # pairs with RAG_SYSTEM_CONTEXT=true in Open WebUI
+        dtype: "bfloat16"
+        tensorParallelSize: 1
+        maxNumSeqs: 32
+        extraArgs:
+          - "--served-model-name"
+          - "qwen3.8-27b"                # LiteLLM calls hosted_vllm/qwen3.8-27b
+          # Non-thinking by default (what you use for RAG). A request can still
+          # turn thinking on per call – LiteLLM's qwen3.8-27b-thinking alias does.
+          - "--default-chat-template-kwargs"
+          - '{"enable_thinking": false}'
+          - "--reasoning-parser"
+          - "qwen3"
+          - "--enable-auto-tool-choice"
+          - "--tool-call-parser"
+          - "qwen3_xml"
+          # Qwen's recommended non-thinking sampling as server defaults
+          # (the checkpoint ships thinking-mode defaults: temp 1.0 / top_p 0.95).
+          - "--override-generation-config"
+          - '{"temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0}'
+          # Optional – text-only RAG: skip vision-encoder memory profiling.
+          # - "--limit-mm-per-prompt"
+          # - '{"image": 0, "video": 0}'
+          # Optional – ~2x KV capacity:
+          # - "--kv-cache-dtype"
+          # - "fp8"
+
+      env:
+        - name: HF_HUB_OFFLINE
+          value: "1"
+        - name: TRANSFORMERS_OFFLINE
+          value: "1"
+        - name: VLLM_NO_USAGE_STATS
+          value: "1"
+        - name: DO_NOT_TRACK
+          value: "1"

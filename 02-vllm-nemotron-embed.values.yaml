@@ -1,0 +1,49 @@
+# =============================================================================
+# vLLM – Nemotron-3-Embed-8B (embeddings, MIG 2g.48gb slice)
+# Format: vLLM production-stack chart. Own chart? Copy extraArgs + vllmConfig.
+#
+# BF16 weights ≈ 16 GB, fits the 48 GB slice with plenty of headroom.
+# Output: 4096-dim, L2-normalised, mean-pooled.
+# Prefixes ("query: " / "passage: ") are NOT added by /v1/embeddings –
+# Open WebUI adds them (see RAG_EMBEDDING_*_PREFIX in 05-open-webui.values.yaml).
+# =============================================================================
+servingEngineSpec:
+  runtimeClassName: "nvidia"
+  modelSpec:
+    - name: "nemotron-embed"
+      repository: "<your-registry>/vllm/vllm-openai"
+      tag: "<your-current-tag>"          # NVIDIA validated v0.21 – v0.25
+      modelURL: "/data/models/Nemotron-3-Embed-8B-BF16"
+      replicaCount: 1
+      requestCPU: 4
+      requestMemory: "32Gi"
+      requestGPU: 1
+      # GPU operator MIG strategy "mixed". With strategy "single" use nvidia.com/gpu.
+      requestGPUType: "nvidia.com/mig-2g.48gb"
+      pvcStorage: "40Gi"
+      shmSize: "8Gi"
+
+      vllmConfig:
+        runner: "pooling"
+        # Model supports 32k, but chunks are ~800 tokens. 8192 = headroom
+        # without wasting the slice. Anything over this gets a 400 from vLLM.
+        maxModelLen: 8192
+        gpuMemoryUtilization: 0.85
+        dtype: "bfloat16"
+        tensorParallelSize: 1
+        extraArgs:
+          - "--served-model-name"
+          - "nemotron-3-embed-8b"
+          # Pooling comes from the checkpoint's sentence-transformers config
+          # (MEAN + normalise). Run verify_rag_stack.py – if the embedding check
+          # FAILS, force mean pooling (key name depends on your vLLM version):
+          #   vLLM >= 0.26:  --pooler-config '{"seq_pooling_type": "MEAN"}'
+          #   older:         --pooler-config '{"pooling_type": "MEAN"}'
+
+      env:
+        - name: HF_HUB_OFFLINE
+          value: "1"
+        - name: TRANSFORMERS_OFFLINE
+          value: "1"
+        - name: VLLM_NO_USAGE_STATS
+          value: "1"

@@ -1,0 +1,141 @@
+# =============================================================================
+# Open WebUI (official open-webui Helm chart) – merge into your existing values.
+#
+# IMPORTANT – most RAG settings are *persistent config*: Helm sets them only on
+# first start; after that the value saved in the database wins. On an existing
+# install, apply them in Admin Panel → Settings → Documents as well (README,
+# step 5). Vars marked [ENV-ONLY] are read from the environment on every
+# start and have no UI field – Helm is the only place to set them.
+# =============================================================================
+
+ollama:
+  enabled: false
+
+# Tika: keep whatever you run today. If you use the chart's subchart:
+tika:
+  enabled: true
+
+# Chat connection → LiteLLM
+openaiBaseApiUrl: "http://litellm.litellm.svc.cluster.local:4000/v1"   # <-- your svc
+openaiApiKeyExistingSecret: "open-webui-litellm"                     # <-- secret holding a LiteLLM key
+openaiApiKeyExistingSecretKey: "api-key"
+
+extraEnvVars:
+  # ---------------------------------------------------------------- airgap
+  - name: OFFLINE_MODE                      # [ENV-ONLY] no update checks / model downloads
+    value: "true"
+  - name: HF_HUB_OFFLINE                    # [ENV-ONLY]
+    value: "1"
+  - name: RAG_EMBEDDING_MODEL_AUTO_UPDATE   # [ENV-ONLY]
+    value: "false"
+  - name: RAG_RERANKING_MODEL_AUTO_UPDATE   # [ENV-ONLY]
+    value: "false"
+
+  # ------------------------------------------------------ extraction (Tika)
+  - name: CONTENT_EXTRACTION_ENGINE
+    value: "tika"
+  - name: TIKA_SERVER_URL
+    value: "http://open-webui-tika:9998"    # <-- your Tika svc
+  - name: RAG_FILE_MAX_SIZE                 # MB – 500-page PDFs can be large
+    value: "200"
+  - name: PDF_EXTRACT_IMAGES                # true = Tika OCRs every embedded image (very slow)
+    value: "false"
+
+  # -------------------------------------------------------------- chunking
+  # Token splitter so CHUNK_SIZE is tokens, not characters (default is
+  # characters → 1000 chars ≈ 250 tokens → thousands of tiny chunks).
+  # Uses tiktoken cl100k_base, which ships inside the standard (non-slim) image.
+  - name: RAG_TEXT_SPLITTER
+    value: "token"
+  - name: CHUNK_SIZE
+    value: "800"
+  - name: CHUNK_OVERLAP
+    value: "100"
+
+  # ------------------------------------------------ embeddings (via LiteLLM)
+  - name: RAG_EMBEDDING_ENGINE
+    value: "openai"
+  - name: RAG_OPENAI_API_BASE_URL
+    value: "http://litellm.litellm.svc.cluster.local:4000/v1"          # <-- your svc
+  - name: RAG_OPENAI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: open-webui-litellm
+        key: api-key
+  - name: RAG_EMBEDDING_MODEL
+    value: "nemotron-3-embed-8b"            # = LiteLLM model_name
+  - name: RAG_EMBEDDING_BATCH_SIZE          # chunks per request (default 1 = very slow)
+    value: "32"
+  - name: ENABLE_ASYNC_EMBEDDING
+    value: "true"
+  - name: RAG_EMBEDDING_CONCURRENT_REQUESTS # don't flood the MIG slice
+    value: "4"
+  # Nemotron-3-Embed prefixes. [ENV-ONLY]. Keep the quotes: the trailing
+  # space is part of the prefix. Do NOT set RAG_EMBEDDING_PREFIX_FIELD_NAME,
+  # otherwise the prefix is sent as a JSON field instead of prepended.
+  - name: RAG_EMBEDDING_QUERY_PREFIX
+    value: "query: "
+  - name: RAG_EMBEDDING_CONTENT_PREFIX
+    value: "passage: "
+
+  # ------------------------------------------------------------- retrieval
+  # Never send the whole 500-page document: ~300k tokens > any context window.
+  - name: RAG_FULL_CONTEXT
+    value: "false"
+  - name: BYPASS_EMBEDDING_AND_RETRIEVAL
+    value: "false"
+  - name: ENABLE_RAG_HYBRID_SEARCH          # BM25 + vector
+    value: "true"
+  - name: RAG_HYBRID_BM25_WEIGHT
+    value: "0.5"
+  - name: RAG_TOP_K                         # candidates per retriever, per file
+    value: "20"
+  - name: RAG_TOP_K_RERANKER                # chunks actually sent to Qwen (~7k tokens)
+    value: "8"
+  - name: RAG_RELEVANCE_THRESHOLD           # start at 0, raise to ~0.1 once it works
+    value: "0.0"
+  # The "set to true" one: put retrieved context in the system message at a
+  # fixed position so vLLM's prefix cache is reused on follow-up questions.
+  - name: RAG_SYSTEM_CONTEXT                # [ENV-ONLY]
+    value: "true"
+
+  # ---------------------------------------- reranker — pick ONE option
+  # Option A: vLLM reranker (03-vllm-reranker.values.yaml) through LiteLLM.
+  # "external" = Open WebUI never tries to download a model.
+  - name: RAG_RERANKING_ENGINE
+    value: "external"
+  - name: RAG_RERANKING_MODEL
+    value: "bge-reranker-v2-m3"             # = LiteLLM model_name
+  - name: RAG_EXTERNAL_RERANKER_URL         # full URL, Open WebUI appends nothing
+    value: "http://litellm.litellm.svc.cluster.local:4000/v1/rerank"   # <-- your svc
+  - name: RAG_EXTERNAL_RERANKER_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: open-webui-litellm
+        key: api-key
+  - name: RAG_EXTERNAL_RERANKER_TIMEOUT
+    value: "60"
+
+  # Option B: no spare GPU → delete the 5 Option A entries above, use these.
+  # Hybrid search still runs; with no reranking model Open WebUI scores the
+  # candidates by cosine similarity using the Nemotron embedder. Nothing to download.
+  # - name: RAG_RERANKING_ENGINE
+  #   value: ""
+  # - name: RAG_RERANKING_MODEL
+  #   value: ""
+  # (Option B → use RAG_TOP_K=10, RAG_TOP_K_RERANKER=6: every candidate is
+  #  re-embedded at query time, so fewer candidates = faster answers.)
+
+  # ------------------------------------------------------------ task model
+  # Titles, tags, and retrieval-query generation. Non-thinking model, so no
+  # <think> blocks leak into the generated search queries.
+  - name: TASK_MODEL_EXTERNAL
+    value: "qwen3.8-27b"
+  - name: ENABLE_RETRIEVAL_QUERY_GENERATION
+    value: "true"
+
+  # ---------------------------------------------------- only if pgvector
+  # Nemotron vectors are 4096-dim. pgvector's `vector` type caps at 2000 dims,
+  # and even `halfvec` can only *index* up to 4000. Default Chroma is fine.
+  # - name: VECTOR_DB
+  #   value: "pgvector"

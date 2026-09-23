@@ -1,0 +1,45 @@
+# =============================================================================
+# vLLM – reranker for Open WebUI hybrid search (airgap-safe replacement for
+# the model Open WebUI tries to download when you tick "Hybrid Search").
+#
+# OPTIONAL. Needs *some* GPU: a spare MIG slice is plenty (1g.24gb is fine –
+# the model is ~1.1 GB). No spare GPU? Skip this file and use Option B in
+# 05-open-webui.values.yaml (hybrid search with cosine scoring, no reranker).
+#
+# Model: BAAI/bge-reranker-v2-m3 (568M, multilingual, 8192 ctx). Mirror it
+# into the PVC like your other models.
+# Alternative: nvidia/llama-nemotron-rerank-1b-v2 – needs --trust-remote-code
+# and a custom --chat-template (see its model card), so more moving parts.
+# =============================================================================
+servingEngineSpec:
+  runtimeClassName: "nvidia"
+  modelSpec:
+    - name: "reranker"
+      repository: "<your-registry>/vllm/vllm-openai"
+      tag: "<your-current-tag>"
+      modelURL: "/data/models/bge-reranker-v2-m3"
+      replicaCount: 1
+      requestCPU: 2
+      requestMemory: "8Gi"
+      requestGPU: 1
+      requestGPUType: "nvidia.com/mig-1g.24gb"   # <-- whatever slice you have free
+      pvcStorage: "10Gi"
+      shmSize: "2Gi"
+
+      vllmConfig:
+        runner: "pooling"      # auto-detected as a scoring model → /rerank, /v1/rerank
+        maxModelLen: 8192
+        gpuMemoryUtilization: 0.60
+        dtype: "bfloat16"
+        tensorParallelSize: 1
+        extraArgs:
+          - "--served-model-name"
+          - "bge-reranker-v2-m3"
+
+      env:
+        - name: HF_HUB_OFFLINE
+          value: "1"
+        - name: TRANSFORMERS_OFFLINE
+          value: "1"
+        - name: VLLM_NO_USAGE_STATS
+          value: "1"

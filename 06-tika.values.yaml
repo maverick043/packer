@@ -1,0 +1,57 @@
+# =============================================================================
+# Tika – fast, predictable extraction for big PDFs.
+# This is the `tika:` subchart block of the open-webui chart (apache/tika-helm).
+# Merge into your Open WebUI values.
+#
+# Why uploads crawl: the "-full" Tika image ships Tesseract, and Tika's default
+# PDF OCR strategy is AUTO – any page with <10 chars of text or garbled font
+# mapping gets OCR'd on CPU (~1–5 s/page). The chart default is 2 CPU / 2 GiB,
+# and Tika kills any job after 5 minutes (taskTimeoutMillis=300000).
+#
+# First check which major version you run:
+#   kubectl exec deploy/open-webui -- curl -s http://<tika-svc>:9998/version
+# The XML below is for Tika 2.x / 3.x. Tika 4.x uses JSON config (see bottom),
+# and Open WebUI needs TIKA_SERVER_VERSION=4 to talk to it.
+# =============================================================================
+tika:
+  enabled: true
+  image:
+    repository: "<your-registry>/apache/tika"
+    tag: "<your-mirrored-tag>"
+    # Simplest fix if your PDFs have a text layer: mirror the tag WITHOUT
+    # "-full". No Tesseract → no OCR at all, and you can drop tikaConfig.
+  resources:
+    requests:
+      cpu: "2"
+      memory: 3Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi              # forked JVM (-Xmx3g) + server JVM
+  # Mounted as /tika-config/tika-config.xml and passed with -c by the chart.
+  # No OCR: text-layer PDFs extract in seconds. Scanned PDFs: OCR them once
+  # offline (ocrmypdf --jobs 8 in.pdf out.pdf) and upload out.pdf.
+  # (Keep "--" out of the XML comments below – it is invalid inside <!-- -->.)
+  tikaConfig: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <properties>
+      <parsers>
+        <parser class="org.apache.tika.parser.DefaultParser">
+          <parser-exclude class="org.apache.tika.parser.ocr.TesseractOCRParser"/>
+        </parser>
+      </parsers>
+      <server>
+        <!-- 15 min instead of 5, so a big file isn't killed halfway -->
+        <taskTimeoutMillis>900000</taskTimeoutMillis>
+        <forkedJvmArgs>
+          <arg>-Xmx3g</arg>
+        </forkedJvmArgs>
+      </server>
+    </properties>
+
+# Tika 4.x equivalent (tika-config.json). Note the chart's tikaConfig mounts a
+# file called tika-config.xml, so on 4.x prefer the non-"-full" image instead:
+#   {"parsers": [{"default-parser": {}}, {"tesseract-ocr-parser": {"skipOcr": true}}]}
+#
+# And in the Open WebUI extraEnvVars (05) when on Tika 4.x:
+#   - name: TIKA_SERVER_VERSION
+#     value: "4"        # also returns Markdown → headings/tables survive

@@ -1,0 +1,71 @@
+# =============================================================================
+# LiteLLM proxy config.
+# litellm-helm chart: paste everything below under the `proxy_config:` key.
+# Standalone: this is the config.yaml you pass with --config.
+#
+# Service URLs are placeholders – replace with your vLLM service DNS names.
+# api_base rules (checked against LiteLLM's hosted_vllm provider code):
+#   chat + embeddings → include /v1      (LiteLLM appends /chat/completions, /embeddings)
+#   rerank            → NO /v1           (LiteLLM appends /rerank)
+# =============================================================================
+model_list:
+  # --- Chat: non-thinking (vLLM server default). Use for RAG + Open WebUI tasks.
+  - model_name: qwen3.8-27b
+    litellm_params:
+      model: hosted_vllm/qwen3.8-27b
+      api_base: http://qwen38-27b.vllm.svc.cluster.local:8000/v1        # <-- your svc
+      api_key: os.environ/VLLM_API_KEY      # or "none" if vLLM has no --api-key
+    model_info:
+      mode: chat
+      max_input_tokens: 131072              # keep equal to vLLM maxModelLen
+      max_output_tokens: 8192
+
+  # --- Chat: same backend, thinking switched back on per request.
+  # Unknown params go into extra_body for hosted_vllm, which vLLM reads.
+  - model_name: qwen3.8-27b-thinking
+    litellm_params:
+      model: hosted_vllm/qwen3.8-27b
+      api_base: http://qwen38-27b.vllm.svc.cluster.local:8000/v1        # <-- your svc
+      api_key: os.environ/VLLM_API_KEY
+      temperature: 1.0                      # Qwen's thinking-mode sampling
+      top_p: 0.95
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: true
+    model_info:
+      mode: chat
+      max_input_tokens: 131072
+      max_output_tokens: 32768
+
+  # --- Embeddings (Nemotron on the MIG slice)
+  - model_name: nemotron-3-embed-8b
+    litellm_params:
+      model: hosted_vllm/nemotron-3-embed-8b
+      api_base: http://nemotron-embed.vllm.svc.cluster.local:8000/v1    # <-- your svc
+      api_key: os.environ/VLLM_API_KEY
+    model_info:
+      mode: embedding
+      max_input_tokens: 8192                # = vLLM maxModelLen for the embedder
+
+  # --- Reranker (only if you deployed 03-vllm-reranker.values.yaml)
+  - model_name: bge-reranker-v2-m3
+    litellm_params:
+      model: hosted_vllm/bge-reranker-v2-m3
+      api_base: http://reranker.vllm.svc.cluster.local:8000             # <-- your svc, no /v1
+      api_key: os.environ/VLLM_API_KEY
+    model_info:
+      mode: rerank
+
+litellm_settings:
+  drop_params: true          # drop unsupported OpenAI params instead of returning 400
+  request_timeout: 600       # long RAG answers / big embedding batches
+
+router_settings:
+  routing_strategy: simple-shuffle
+  num_retries: 1
+  # Don't retry 400s (incl. context-length errors) – they fail the same way again.
+  retry_policy:
+    BadRequestErrorRetries: 0
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
