@@ -2,7 +2,7 @@
 title: Export to Word
 author: rag-stack
 version: 1.0.0
-description: Adds "Export answer to Word" and "Export chat to Word" buttons. Converts the Markdown answer with pandoc (headings, lists, tables, code) into a styled .docx – fully offline.
+description: Adds an "Export answer to Word" button. Converts the Markdown answer with pandoc (headings, lists, tables, code) into a styled .docx – fully offline.
 required_open_webui_version: 0.6.0
 """
 
@@ -218,6 +218,10 @@ def build_markdown(messages: list, message_id: str, scope: str, include_question
 # Open WebUI Action
 # --------------------------------------------------------------------------- #
 
+# Toolbar icons (16 px, monochrome – Open WebUI inverts SVG icons in dark mode).
+# Document + arrow = "export answer".
+ICON_ANSWER = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWYyOTM3IiBzdHJva2Utd2lkdGg9IjEuNyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTQgM0g3YTIgMiAwIDAgMC0yIDJ2MTRhMiAyIDAgMCAwIDIgMmgxMGEyIDIgMCAwIDAgMi0yVjh6Ii8+PHBhdGggZD0iTTE0IDN2NWg1Ii8+PHBhdGggZD0iTTEyIDExdjYiLz48cGF0aCBkPSJtOSAxNCAzIDMgMy0zIi8+PC9zdmc+"
+
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
@@ -237,10 +241,9 @@ class Action:
 
     def __init__(self):
         self.valves = self.Valves()
-        # Two buttons under every assistant message
+        # One button under every assistant message
         self.actions = [
-            {"id": "answer", "name": "Export answer to Word"},
-            {"id": "chat", "name": "Export chat to Word"},
+            {"id": "answer", "name": "Export answer to Word", "icon_url": ICON_ANSWER},
         ]
 
     async def action(self, body: dict, __user__=None, __event_emitter__=None, __id__=None, __request__=None):
